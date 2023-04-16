@@ -1,0 +1,35 @@
+# Web Password
+password: aa
+
+# FileManger Root Directory
+root-directory: /home/myo/console/
+
+# Server Settings
+server:
+  proxy:
+    name: Proxy
+    directory: /home/myo/console/minecraft/proxy/
+    command: java -Xmx1G -Xms1G -jar waterfall.jar nogui
+    screen-id: mc-Proxy
+    type: proxy
+
+  lobby:
+    name: Lobby
+    directory: /home/myo/console/minecraft/lobby/
+    command: java -Xmx1G -Xms1G -jar paper.jar nogui
+    screen-id: mc-Lobby
+    type: minecraft
+
+  main:
+    name: Main
+    directory: /home/myo/console/minecraft/main/
+    command: java -Xmx1G -Xms1G -jar paper.jar nogui
+    screen-id: mc-Main
+    type: minecraft
+
+# Example:
+#   name: Server name displayed on the web
+#   directory: Server directory
+#   command: Command to start the server
+#   screen-id: Screen session name
+#   type: proxy or minecraft

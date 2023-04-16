@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}">
+    <link rel="icon" href="https://www.mydd.jp/dash/assets/favicon.png">
+    <meta name="robots" content="noindex">
+</head>
+<body>
+<div class="login">
+    <div class="login_Div">
+        <h1>ログイン</h1>
+        <p class="error">{{ error }}</p>
+        <p>この先は認証が必要です。パスワードを入力して下さい。</p>
+        <form method="post">
+            <input type="password" name="pass" placeholder="パスワード">
+            <input type="submit" value="ログイン">
+        </form>
+    </div>
+</div>
+
+</body>
+</html>

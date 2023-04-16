@@ -1,0 +1,85 @@
+.login{
+    width: 500px;
+    height: 250px;
+    border-radius: 25px;
+    padding: 50px;
+    background: #ffffff;
+    box-shadow:  20px 20px 60px #d3d4d9,
+    -20px -20px 60px #f8f9ff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+@media(max-width: 630px){
+    .login{
+        padding: 50px 10px;
+        margin: 10px;
+    }
+}
+.login_Div{
+    display: block;
+}
+form{
+    margin: auto;
+    width: fit-content;
+    max-width: 60%;
+}
+input[type="password"]{
+    width: 100%;
+    height: 50px;
+    font-size: 30px;
+    text-align: center;
+    border: none;
+    outline:none;
+    border-radius: 0;
+    border-bottom: 1px solid #919191;
+    transition: all 0.5s ease-in;
+    font-family: "Lato", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+}
+input[type="submit"]{
+    -webkit-appearance: none;
+    margin: 20px calc( calc(100% - 150px) / 2) 0 calc( calc(100% - 150px) / 2);
+    height: 40px;
+    width: 150px;
+    text-align: center;
+    background-color: #1b6dd3;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    font-family: "Lato", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+    transition: all 0.5s ease-in-out;
+}
+input[type="password"]:focus{
+    border: none;
+    border-bottom: 3px solid #115ec2;
+}
+input[type="submit"]:hover{
+    background-color: #7897c0;
+}
+.error{
+    color: #ff0000;
+    margin: 0;
+}
+h1{
+    margin: 0;
+    text-align: center;
+}
+p{
+    text-align: center;
+}
+body{
+    background-color: #f8f9ff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+}
+html{
+    height: 100%;
+    width: 100%;
+    font-family: "Lato", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+}

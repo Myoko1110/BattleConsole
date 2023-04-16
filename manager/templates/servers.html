@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Console | Servers</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='servers.css') }}">
+    <link rel="icon" href="https://www.mydd.jp/dash/assets/favicon.png">
+    <meta name="robots" content="noindex">
+    <script src="https://code.jquery.com/jquery-3.3.1.js"></script>
+    <script src="https://www.mydd.jp/dash/assets/response.js"></script>
+</head>
+<body>
+<header>
+    <nav class="pc">
+        <div class="header_Div">
+            <a class="header_Text" href="/">
+                <div class="header_Img-div">
+                    <img class="header_Img" src="https://www.mydd.jp/dash/assets/logo.png" alt="logo" onmousedown="return false;">
+                </div>
+            </a>
+            <div class="header_Nav">
+                <div class="header_NoSel" onclick="location.href='/'">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="18px" height="18px">
+                        <path d="M64 64c0-17.7-14.3-32-32-32S0 46.3 0 64V400c0 44.2 35.8 80 80 80H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H80c-8.8 0-16-7.2-16-16V64zm96 288H448c17.7 0 32-14.3 32-32V251.8c0-7.6-2.7-15-7.7-20.8l-65.8-76.8c-12.1-14.2-33.7-15-46.9-1.8l-21 21c-10 10-26.4 9.2-35.4-1.6l-39.2-47c-12.6-15.1-35.7-15.4-48.7-.6L135.9 215c-5.1 5.8-7.9 13.3-7.9 21.1v84c0 17.7 14.3 32 32 32z"/>
+                    </svg>
+                    <a class="header_NoSel-Text" href="/">Dashboard</a>
+                </div>
+                <div class="header_Sel" onclick="location.href='servers'">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="18px" height="18px">
+                        <path d="M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z"/>
+                    </svg>
+                    <a class="header_Sel-Text" href="servers">Servers</a>
+                </div>
+                <div class="header_NoSel" onclick="location.href='cmd'">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512" width="18px" height="18px">
+                        <path d="M41.4 86.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l192 192c12.5 12.5 12.5 32.8 0 45.3l-192 192c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 41.4 86.6zM288 416H576c17.7 0 32 14.3 32 32s-14.3 32-32 32H288c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/>
+                    </svg>
+                    <a class="header_NoSel-Text" href="cmd">Console</a>
+                </div>
+                <div class="header_NoSel" onclick="location.href='file'">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" width="18px" height="18px">
+                        <path d="M320 464c8.8 0 16-7.2 16-16V160H256c-17.7 0-32-14.3-32-32V48H64c-8.8 0-16 7.2-16 16V448c0 8.8 7.2 16 16 16H320zM0 64C0 28.7 28.7 0 64 0H229.5c17 0 33.3 6.7 45.3 18.7l90.5 90.5c12 12 18.7 28.3 18.7 45.3V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64z"/>
+                    </svg>
+                    <a class="header_NoSel-Text" href="file">File Manager</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>
+<section>
+    <div class="bar">
+        <img class="header_Mobile" src="//www.mydd.jp/dash/assets/logo.png" alt="logo" onmousedown="return false;">
+        <h2>サーバー</h2>
+        <div class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <nav class="globalMenuSp">
+            <ul>
+                <li><a href="/">Dashboard</a></li>
+                <li><a href="servers">Servers</a></li>
+                <li><a href="cmd">Console</a></li>
+                <li><a href="file">File Manager</a></li>
+            </ul>
+        </nav>
+    </div>
+    <div class="main">
+        <div class="main_Div">
+            <div class="main_Servers">
+                {% for s in server['server'].keys() %}
+                <div class="main_Server">
+                    <div class="main_Server-1">
+                        <img src="{{ url_for('static', filename='server.svg') }}">
+                        <h1 class="main_Server-name">{{ server['server'][s]['name'] }}</h1>
+                    </div>
+                    <div class="main_Server-2">
+                        {% if status[s] == "stop" %}
+                        <div class="main_Server-boot Run">
+                            <form method="post">
+                                <label for="submit{{ s }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="30px" height="30px">
+                                        <path d="M288 32c0-17.7-14.3-32-32-32s-32 14.3-32 32V256c0 17.7 14.3 32 32 32s32-14.3 32-32V32zM143.5 120.6c13.6-11.3 15.4-31.5 4.1-45.1s-31.5-15.4-45.1-4.1C49.7 115.4 16 181.8 16 256c0 132.5 107.5 240 240 240s240-107.5 240-240c0-74.2-33.8-140.6-86.6-184.6c-13.6-11.3-33.8-9.4-45.1 4.1s-9.4 33.8 4.1 45.1c38.9 32.3 63.5 81 63.5 135.4c0 97.2-78.8 176-176 176s-176-78.8-176-176c0-54.4 24.7-103.1 63.5-135.4z"/>
+                                    </svg>
+                                    <input type="submit" name="{{ s }}" value="起動" id="submit{{ s }}">
+                                </label>
+                            </form>
+                        </div>
+                        {% elif status[s] == "loading" %}
+                        <div class="main_Server-boot Starting">
+                            <form method="post">
+                                <label for="submit{{ s }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="30px" height="30px">
+                                        <path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/>
+                                    </svg>
+                                    <input type="submit" name="{{ s }}" value="起動中" id="submit{{ s }}">
+                                </label>
+                            </form>
+                        </div>
+                        {% else %}
+                        <div class="main_Server-boot Stop">
+                            <form method="post">
+                                <label for="submit{{ s }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="30px" height="30px">
+                                        <path d="M384 32C419.3 32 448 60.65 448 96V416C448 451.3 419.3 480 384 480H64C28.65 480 0 451.3 0 416V96C0 60.65 28.65 32 64 32H384zM384 80H64C55.16 80 48 87.16 48 96V416C48 424.8 55.16 432 64 432H384C392.8 432 400 424.8 400 416V96C400 87.16 392.8 80 384 80z"/>
+                                    </svg>
+                                    <input type="submit" name="{{ s }}" value="停止" id="submit{{ s }}">
+                                </label>
+                            </form>
+                        </div>
+                        <!--
+                        <div class="main_Server-boot Restart">
+                            <form method="post" name="proxyR">
+                                <label for="submit10">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="30px" height="30px">
+                                        <path d="M463.5 224H472c13.3 0 24-10.7 24-24V72c0-9.7-5.8-18.5-14.8-22.2s-19.3-1.7-26.2 5.2L413.4 96.6c-87.6-86.5-228.7-86.2-315.8 1c-87.5 87.5-87.5 229.3 0 316.8s229.3 87.5 316.8 0c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0c-62.5 62.5-163.8 62.5-226.3 0s-62.5-163.8 0-226.3c62.2-62.2 162.7-62.5 225.3-1L327 183c-6.9 6.9-8.9 17.2-5.2 26.2s12.5 14.8 22.2 14.8H463.5z"/>
+                                    </svg>
+                                    <input type="submit" name="proxyR" value="再起動" id="submit10">
+                                </label>
+                            </form>
+                        </div>
+                        -->
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+</body>
+</html>
