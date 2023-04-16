@@ -270,8 +270,6 @@ nav.globalMenuSp.active {
     -webkit-border-radius: 8px 8px 0 0;
     -moz-border-radius: 8px 8px 0 0;
     padding: 0;
-    z-index: 0;
-    position: relative;
 }
 .main_Console-1 p{
     margin: 0;
