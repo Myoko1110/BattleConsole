@@ -25,6 +25,10 @@ let filenumber = $('#ul').attr('file')
 console.log(filenumber)
 $('#numberfile').text(filenumber + '個の項目')
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // 削除の確認
 function delete_file(){
     confirm.style.transform = 'scale(1, 1)';
@@ -38,11 +42,11 @@ function delete_file_confirm(){
 }
 
 // 削除キャンセル
-function cancel(){
-    confirm.style.transform = 'scale(0, 0)';
+async function cancel(){
     Delete.classList.toggle('active');
+    await sleep(100);
+    confirm.style.transform = 'scale(0, 0)';
 }
-
 // ファイルコピー
 function copy_file(){
     location.href = '?p=' + path + '&s=' + href.join(',');
