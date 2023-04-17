@@ -1,4 +1,4 @@
-from manager import app
+from manager import app, FileExplorer, ServerJob
 from manager import socketio
 from flask import render_template, request, redirect, make_response, Response, send_file
 from datetime import datetime
@@ -15,8 +15,6 @@ import yaml
 import re
 import threading
 import secrets
-import mcsv
-import FileExplorer
 
 consoleP = ''
 consoleL = ''
@@ -51,41 +49,24 @@ threading.Thread(target=check_session, daemon=True).start()
 def export_console():
     global socketio_status
 
-    oldP = ''
-    oldL = ''
-    oldM = ''
-    consoleP = ''
-    consoleL = ''
-    consoleM = ''
+    old = {}
+    console = {}
 
     while True:
         with open('manager/status.yml', 'r') as s:
             status = yaml.load(s, Loader=yaml.SafeLoader)
 
-        if status['proxy'] == 'stop':
-            consoleP = 'サーバーは起動していません'
-
-        if status['proxy'] == 'loading' or status['proxy'] == 'run':
-            consoleP = re.sub(r'\x1b(\[|\(|\))[0-9;]*[A-Za-z]', '', mcsv.console['proxy']).replace("> ", "")
-
-        if status['lobby'] == 'stop':
-            consoleL = 'サーバーは起動していません'
-
-        if status['lobby'] == 'loading' or status['lobby'] == 'run':
-            consoleL = re.sub(r'\x1b(\[|\(|\))[0-9;]*[A-Za-z]', '', mcsv.console['lobby']).replace("> ", "")
-
-        if status['main'] == 'stop':
-            consoleM = 'サーバーは起動していません'
-
-        if status['main'] == 'loading' or status['main'] == 'run':
-            consoleM = re.sub(r'\x1b(\[|\(|\))[0-9;]*[A-Za-z]', '', mcsv.console['main']).replace("> ", "")
-
-        if consoleP != oldP or consoleL != oldL or consoleM != oldM:
-            socketio.emit('console', {'proxy': consoleP, 'lobby': consoleL, 'main': consoleM})
-        oldP = consoleP
-        oldL = consoleL
-        oldM = consoleM
-
+        for s in settings['server'].keys():
+            try:
+                if status[s] == 'stop':
+                    console[s] = 'サーバーは起動していません'
+                if status[s] == 'loading' or status[s] == 'run':
+                    console[s] = re.sub(r'\x1b(\[|\(|\))[0-9;]*[A-Za-z]', '', ServerJob.console[s]).replace("> ", "")
+                if console != old:
+                    socketio.emit('console', {s: console[s]})
+            except KeyError:
+                continue
+        old = console
         if socketio_status == 'disconnect':
             break
 
@@ -174,7 +155,7 @@ def servers():
                     if status[server] == "stop":
 
                         # サーバーを起動、statusをrunにする
-                        t = threading.Thread(target=mcsv.start_server, args=(server,))
+                        t = threading.Thread(target=ServerJob.start_server, args=(server,))
                         t.start()
                         status[server] = "loading"
                         socketio.emit('status', {server: 'loading'})
@@ -186,7 +167,7 @@ def servers():
                     elif status[server] == "run":
 
                         # サーバーを停止、statusをstopにする
-                        mcsv.stop_server(server)
+                        ServerJob.stop_server(server)
                         status[server] = "loading"
                         socketio.emit('status', {server: 'loading'})
 
@@ -245,7 +226,8 @@ def file_explorer():
                 current_dir = Path(request.args.get("p") or FileExplorer.FILE_EXPLORER_ROOT)
 
                 # 存在しないパスだったら、安全な限り存在する上の階層に移動する
-                while not (FileExplorer.FILE_EXPLORER_ROOT / current_dir).exists() and FileExplorer.is_safe_path(current_dir):
+                while not (
+                        FileExplorer.FILE_EXPLORER_ROOT / current_dir).exists() and FileExplorer.is_safe_path(current_dir):
                     current_dir = current_dir / ".."
 
                 # 安全なパスではなかったら、rootパスにリダイレクト
@@ -579,4 +561,4 @@ def disconnect():
 
 @socketio.on('console')
 def run_command(data):
-    mcsv.exe_command(data['srv'], data['cmd'])
+    ServerJob.exe_command(data['srv'], data['cmd'])
