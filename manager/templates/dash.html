@@ -74,16 +74,28 @@
         <div class="main_Div">
             <div class="main_Servers">
                 {% for s in server['server'].keys() %}
-                <div class="main_Server">
+                {% if status[s] == 'run' %}
+                <div class="main_Server" onclick="location.href='cmd?s={{ s }}'">
                     <div style="display: block;">
                         <p class="main_Server-name">{{ server['server'][s]['name'] }}</p>
-                        {% if status[s] == 'run' %}
-                        <p class="main_Server-Status run">稼働中</p>
-                        {% elif status[s] == 'stop' %}
-                        <p class="main_Server-Status stop">停止中</p>
-                        {% endif %}
+                        <p class="main_Server-Status run">稼働</p>
                     </div>
                 </div>
+                {% elif status[s] == 'stop' %}
+                <div class="main_Server" onclick="location.href='servers'">
+                    <div style="display: block;">
+                        <p class="main_Server-name">{{ server['server'][s]['name'] }}</p>
+                        <p class="main_Server-Status stop">停止</p>
+                    </div>
+                </div>
+                {% elif status[s] == 'loading' %}
+                <div class="main_Server" onclick="location.href='cmd?s={{ s }}'">
+                    <div style="display: block;">
+                        <p class="main_Server-name">{{ server['server'][s]['name'] }}</p>
+                        <p class="main_Server-Status load">起動中/停止中</p>
+                    </div>
+                </div>
+                {% endif %}
                 {% endfor %}
             </div>
             <div class="graph">
