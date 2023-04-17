@@ -250,6 +250,7 @@ nav.globalMenuSp.active {
     border-radius: 15px;
     box-shadow:  5px 5px 10px #eeeff5,
     -5px -5px 10px #ffffff;
+    cursor: pointer;
 }
 @media(min-width: 1000px){
     .main_Servers{
@@ -280,18 +281,19 @@ nav.globalMenuSp.active {
     .main_Servers{
         margin: 0 auto;
         width: 100%;
-        max-width: 400px;
+        max-width: 500px;
     }
     .graph_people{
         width: 100%;
         max-width: 500px;
-        margin: 0 auto;
+        margin: 10px auto;
     }
 }
 .main_Server-name{
-    font-size: 30px;
+    font-size: 40px;
     margin: 0;
     font-weight: 700;
+    text-align: center;
 }
 .main_Server-Status{
     font-weight: 400;
@@ -300,11 +302,28 @@ nav.globalMenuSp.active {
 
 .run{
     color: #20bd88;
+    background-color: #d6fff1;
+    font-size: 20px;
+    padding: 5px;
+    width: 140px;
+    border-radius: 10px;
 }
 .stop{
     color: #bd2020;
+    background-color: #ffd6d6;
+    font-size: 20px;
+    padding: 5px;
+    width: 140px;
+    border-radius: 10px;
 }
-
+.load{
+    color: #b2a712;
+    background-color: #feffd6;
+    font-size: 20px;
+    padding: 5px;
+    width: 140px;
+    border-radius: 10px;
+}
 .graph_Div{
     display: block;
     height: 100%;
