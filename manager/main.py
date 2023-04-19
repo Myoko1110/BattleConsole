@@ -13,18 +13,28 @@ import os
 import shutil
 import yaml
 import re
+import sys
 import threading
 import secrets
 
-consoleP = ''
-consoleL = ''
-consoleM = ''
-socketio_status = 'disconnect'
+error = False
 
 with open('settings.yml', 'r', encoding="utf-8") as fs:
     settings = yaml.load(fs, Loader=yaml.SafeLoader)
-Pass = settings['password']
 
+if settings['password'] == None or "":
+    print('\033[31m'+'[ConsoleError] Password is empty. Please set a password.'+'\033[0m')
+    error = True
+
+if not FileExplorer.FILE_EXPLORER_ROOT.exists():
+    print('\033[31m'+'[ConsoleError] Invalid root path in settings.yml.'+'\033[0m')
+    error = True
+
+if error:
+    sys.exit()
+
+Pass = settings['password']
+socketio_status = 'disconnect'
 
 def check_session():
     while True:
@@ -265,36 +275,36 @@ def file_io():
                 if request.method == "POST":  # upload
                     # 引数の確認
                     out_dir = request.args.get("d")  # アップロード先ディレクトリパスを指定
-                    if not out_dir:
-                        return Response("Directory not specified", status=HTTPStatus.BAD_REQUEST)
+                    if out_dir is None or out_dir == '':
+                        return redirect(f'./file?p=.&i=e,アップロード先のパスが指定されていません。')
 
                     # パスの確認
                     out_dir = Path(out_dir)
-                    if not FileExplorer.is_safe_path(out_dir):
-                        return Response("Invalid path", status=HTTPStatus.FORBIDDEN)
+                    if not out_dir.exists():
+                        return redirect(f'./file?p=.&i=e,アップロード先のパスが無効です。')
 
                     # 送信ファイルの確認
                     file = request.files["file"]
                     if not file:
-                        return Response("File name is empty", status=HTTPStatus.BAD_REQUEST)
+                        return redirect(f'./file?p=.&i=e,ファイル名が無効です。')
 
                     # 送信ファイルの書き出し
                     file.save(FileExplorer.FILE_EXPLORER_ROOT / out_dir / secure_filename(file.filename))
 
                     # 問題がなければ、アップロード先のフォルダを開かせる
                     current_dir = FileExplorer.normalize_path(out_dir)
-                    return redirect(f"./file?p={current_dir.as_posix()}")
+                    return redirect(f"./file?p={current_dir.as_posix()}&i=s,ファイルを正常にアップロードしました。")
 
                 else:  # download
                     # 引数の確認
                     path = request.args.get("p")
-                    if not path:
-                        return Response("Path not specified", status=HTTPStatus.BAD_REQUEST)
+                    if path is None or path == '':
+                        return redirect(f'./file?p=.&i=e,ダウンロードするファイルが指定されていません。')
 
                     # パスの確認
                     path = Path(path)
-                    if not FileExplorer.is_safe_path(path) or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
-                        return Response("Invalid path", status=HTTPStatus.FORBIDDEN)
+                    if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
+                        return redirect(f'./file?p=.&i=e,ダウンロードするファイルが無効です。')
 
                     # ファイル出力
                     return send_file(FileExplorer.FILE_EXPLORER_ROOT / path, mimetype=mimetypes.guess_extension(path.name))
@@ -318,13 +328,14 @@ def file_edit():
                     # 引数の確認
                     path = request.args.get("p")  # 編集ファイルの対象パスを指定
 
-                    if not path:
-                        return Response("Path not specified", status=HTTPStatus.BAD_REQUEST)
+                    if path is None or path == '':
+                        return redirect(f'./file?p=./&i=e,編集するファイルのパスが指定されていません。')
 
                     # パスの確認
                     path = Path(path)
-                    if not FileExplorer.is_safe_path(path) or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
-                        return Response("Invalid path", status=HTTPStatus.FORBIDDEN)
+                    if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
+                        current_dir = Path(request.args.get("p")).parent
+                        return redirect(f'./file?p={current_dir}&i=e,編集するファイルのパスが無効です。')
 
                     # ファイル名を取得し、テキストファイルでなければfioに返す
                     file_name = Path(request.args.get("p")).name
@@ -363,7 +374,7 @@ def file_edit():
 
                         # 編集したファイルのフォルダを開かせる
                         current_dir = Path(path).parent
-                        return redirect(f'./file?p={current_dir}')
+                        return redirect(f'./file?p={current_dir}&i=s,ファイルを正常に保存しました。')
 
                     elif request.form['send'] == 'キャンセル':
 
@@ -392,22 +403,24 @@ def file_copy():
                 source_paths = request.args.get("s")  # コピー元のパス
                 to_path = request.args.get("d")  # コピー先のパス
 
+                if source_paths is None or source_paths == '':
+                    return redirect(f'./file?p=./&i=e,コピーするファイルのパスが指定されていません。')
+                if to_path is None or to_path == '':
+                    return redirect(f'./file?p=./&i=e,コピー先のパスが指定されていません。')
+
                 if ',' in source_paths:
                     source_path = source_paths.split(',')
-                    print(source_path)
                     for i in source_path:
-                        if not i:
-                            return Response("Path(s) not specified", status=HTTPStatus.BAD_REQUEST)
-                        if not to_path:
-                            return Response("Path(d) not specified", status=HTTPStatus.BAD_REQUEST)
 
                         # パスの確認
                         source_path = Path(i)
-                        if not FileExplorer.is_safe_path(source_path):
-                            return Response("Invalid source(s) path", status=HTTPStatus.FORBIDDEN)
+                        if not source_path.exists():
+                            current_dir = request.args.get("d")
+                            return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
                         to_path = Path(to_path)
-                        if not FileExplorer.is_safe_path(to_path) or to_path.is_file():
-                            return Response("Invalid destination(d) path", status=HTTPStatus.FORBIDDEN)
+                        if not to_path.exists() or to_path.is_file():
+                            current_dir = request.args.get("d")
+                            return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
 
                         # コピー先のファイルを参照
                         file_name = Path(source_path).name
@@ -438,21 +451,23 @@ def file_copy():
 
                         # 問題がなければ、コピー先ファイルのフォルダを開かせる
                     current_dir = request.args.get("d")
-                    return redirect(f'./file?p={current_dir}')
+                    return redirect(f'./file?p={current_dir}&i=s,ファイルを正常にコピーしました。')
 
                 else:
-                    if not source_paths:
-                        return Response("Path(s) not specified", status=HTTPStatus.BAD_REQUEST)
-                    if not to_path:
-                        return Response("Path(d) not specified", status=HTTPStatus.BAD_REQUEST)
+                    if source_paths is None or source_paths == '':
+                        return redirect(f'./file?p=./&i=e,コピーするファイルのパスが無効です。')
+                    if to_path is None or to_path == '':
+                        current_dir = request.args.get("d")
+                        return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
 
                     # パスの確認
                     source_path = Path(source_paths)
-                    if not FileExplorer.is_safe_path(source_path):
-                        return Response("Invalid source(s) path", status=HTTPStatus.FORBIDDEN)
+                    if not source_path.exists():
+                        current_dir = request.args.get("d")
+                        return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
                     to_path = Path(to_path)
-                    if not FileExplorer.is_safe_path(to_path) or to_path.is_file():
-                        return Response("Invalid destination(d) path", status=HTTPStatus.FORBIDDEN)
+                    if not to_path.exists() or to_path.is_file():
+                        return redirect(f'./file?p=./&i=e,コピー先のパスが無効です。')
 
                     # コピー先のファイルを参照
                     file_name = Path(source_path).name
@@ -484,7 +499,7 @@ def file_copy():
 
                     # 問題がなければ、コピー先ファイルのフォルダを開かせる
                     current_dir = request.args.get("d")
-                    return redirect(f'./file?p={current_dir}')
+                    return redirect(f'./file?p={current_dir}&i=s,ファイルを正常にコピ－しました。')
         else:
             return redirect('login')
 
@@ -503,8 +518,8 @@ def file_delete():
             if 'session' in request.cookies and request.cookies.get('session') == i:
                 # 引数の確認
                 paths = request.args.get("p")  # 削除するファイルパスを指定
-                if not paths:
-                    return Response("Path not specified", status=HTTPStatus.BAD_REQUEST)
+                if paths is None or paths == '':
+                    return redirect('./file?p=.&i=e,パスが指定されていません。')
 
                 # パスが複数あるとき
                 if ',' in paths:
@@ -515,7 +530,9 @@ def file_delete():
                     # 1つずつ処理
                     for i in path:
                         path = Path(i)
-
+                        if not path.exists():
+                            current_dir = str(Path(path).parent)
+                            return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
                         try:
                             if path.is_dir():
                                 shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
@@ -526,10 +543,12 @@ def file_delete():
 
                         # 問題がなければ、削除ファイルの元フォルダを開かせる
                     current_dir = str(Path(path).parent)
-                    return redirect(f"./file?p={current_dir}")
+                    return redirect(f"./file?p={current_dir}&i=s,ファイルを正常に削除しました。")
                 else:
                     path = Path(paths)
-
+                    if not path.exists():
+                        current_dir = str(Path(path).parent)
+                        return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
                     try:
                         if path.is_dir():
                             shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
@@ -540,7 +559,43 @@ def file_delete():
 
                 # 問題がなければ、削除ファイルの元フォルダを開かせる
                 current_dir = path.parent
-                return redirect(f"./file?p={current_dir}")
+                return redirect(f"./file?p={current_dir}&i=s,ファイルを正常に削除しました。")
+        else:
+            return redirect('login')
+
+
+@app.errorhandler(403)
+def error_403(error):
+    with open('manager/session.yml', 'r', encoding="utf-8") as f:
+        yml = yaml.load(f, Loader=yaml.SafeLoader)
+        true_keys = [key for key, value in yml.items() if value]
+        for i in true_keys:
+            if 'session' in request.cookies and request.cookies.get('session') == i:
+                return render_template('403.html')
+        else:
+            return redirect('login')
+
+
+@app.errorhandler(404)
+def error_404(error):
+    with open('manager/session.yml', 'r', encoding="utf-8") as f:
+        yml = yaml.load(f, Loader=yaml.SafeLoader)
+        true_keys = [key for key, value in yml.items() if value]
+        for i in true_keys:
+            if 'session' in request.cookies and request.cookies.get('session') == i:
+                return render_template('404.html')
+        else:
+            return redirect('login')
+
+
+@app.errorhandler(500)
+def error_500(error):
+    with open('manager/session.yml', 'r', encoding="utf-8") as f:
+        yml = yaml.load(f, Loader=yaml.SafeLoader)
+        true_keys = [key for key, value in yml.items() if value]
+        for i in true_keys:
+            if 'session' in request.cookies and request.cookies.get('session') == i:
+                return render_template('500.html')
         else:
             return redirect('login')
 
