@@ -159,6 +159,7 @@ nav.globalMenuSp.active {
 .header_Mobile{
     width: 200px;
     margin: 0 0 0 20px;
+    cursor: pointer;
 }
 .header_Sel{
     margin: 5px 0;
@@ -243,6 +244,44 @@ nav.globalMenuSp.active {
     width: 100%;
     height: fit-content;
     margin: 80px 0 0;
+}
+.info{
+    position: fixed;
+    width: calc(100vw - 315px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(-240px);
+    transition: 0.3s all ease;
+}
+.info.active{
+    transform: translateY(-70px);
+}
+.info_dir{
+    background-color: #fff;
+    width: fit-content;
+    border-radius: 20px;
+    padding: 5px 20px;
+    display: none;
+    align-items: center;
+    box-shadow: 0 0 50px #e4e5eb;
+    margin: 5px;
+}
+.info_dir svg{
+    width: 70px;
+    height: 70px;
+}
+.info_dir h1{
+    margin: 0 0 0 20px;
+    font-size: 21px;
+}
+@media(max-width: 999px){
+    .info{
+        width: 100%;
+    }
+    .info_dir h1{
+        font-size: 19px;
+    }
 }
 .filedir{
     padding: 10px 30px;
