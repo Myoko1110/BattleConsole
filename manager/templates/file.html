@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Console | Servers</title>
+    <title>Console | File Manager</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="{{ url_for('static', filename='file.css') }}">
@@ -54,7 +54,7 @@
 </header>
 <section id="outer">
     <div class="bar">
-        <img class="header_Mobile" src="//www.mydd.jp/dash/assets/logo.png" alt="logo" onmousedown="return false;">
+        <img class="header_Mobile" src="https://www.mydd.jp/dash/assets/logo.png" alt="logo" onclick="location.href='/'">
         <h2>ファイルマネージャー</h2>
         <div class="hamburger">
             <span></span>
@@ -71,8 +71,18 @@
         </nav>
     </div>
     <div class="main">
+        <div class="info">
+            <div class="info_dir" id="info_success">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Pro 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" style="fill:#00a862"/></svg>
+                <h1 id="info_success_h1"></h1>
+            </div>
+            <div class="info_dir" id="info_error">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"> <!--! Font Awesome Pro 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2023 Fonticons, Inc. --> <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zm0-384c13.3 0 24 10.7 24 24V264c0 13.3-10.7 24-24 24s-24-10.7-24-24V152c0-13.3 10.7-24 24-24zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z" style="fill:#d40000"/> /svg>
+                <h1 id="info_error_h1"></h1>
+            </div>
+        </div>
         <div class="filedir">
-            <h1>~ ./{{cwd.lstrip(".")}}</h1>
+            <h1>~ /{{cwd.lstrip(".")}}</h1>
             <div class="control">
                 <form action="./fio?d={{cwd}}" method="POST" enctype="multipart/form-data">
                     <label><input type="file" name="file" id="file">アップロード</label>
