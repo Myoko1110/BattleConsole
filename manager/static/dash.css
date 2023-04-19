@@ -149,6 +149,7 @@ nav.globalMenuSp.active {
 .header_Mobile{
     width: 200px;
     margin: 0 0 0 20px;
+    cursor: pointer;
 }
 .header_Sel{
     margin: 5px 0;
@@ -257,11 +258,12 @@ nav.globalMenuSp.active {
         display: flex;
         justify-content: center;
         align-items: center;
+        flex-wrap: wrap;
     }
     .main_Server{
-        width: calc(calc(100% - 40px) / 3);
+        width: 100%;
         margin: 10px;
-        max-width: 386px;
+        max-width: 300px;
     }
     .graph{
         display: flex;
