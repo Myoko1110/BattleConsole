@@ -1,7 +1,10 @@
-let href = []
+let href = [];
 const params = (new URL(document.location)).searchParams;
 const path = params.get('p');
 const source = params.get('s');
+const infos = params.get('i');
+const info_success = document.getElementById('info_success');
+const info_error = document.getElementById('info_error');
 const copy = document.getElementById('copy');
 const del = document.getElementById('del');
 const copysvg = document.getElementById('copysvg');
@@ -21,13 +24,36 @@ delsvg.style.fill = '#a9a9a9';
 editsvg.style.fill = '#a9a9a9';
 
 // ファイル数の取得
-let filenumber = $('#ul').attr('file')
-console.log(filenumber)
-$('#numberfile').text(filenumber + '個の項目')
+let filenumber = $('#ul').attr('file');
+$('#numberfile').text(filenumber + '個の項目');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+async function success(info){
+    info_success.style.display = 'flex';
+    $('#info_success_h1').text(info[1]);
+    $('.info').toggleClass('active');
+    await sleep(3000);
+    $('.info').toggleClass('active');
+}
+async function error(info){
+    info_error.style.display = 'flex';
+    $('#info_error_h1').text(info[1]);
+    $('.info').toggleClass('active');
+    await sleep(3000);
+    $('.info').toggleClass('active');
+}
+
+if (infos !== null && infos !== ''){
+    let info = infos.split(',')
+    if (info[0] === 's'){
+        success(info)
+    }else{
+        error(info)
+    }
+}
+
 
 // 削除の確認
 function delete_file(){
@@ -61,11 +87,11 @@ function paste_file(){
 function edit_file(){
     if(href.length !== 0){
         if ($('.selected').attr('filetype') === 'folder') {
-            dir = '?p=' + $('.selected').attr('dir')
-            location.href = dir
+            dir = '?p=' + $('.selected').attr('dir');
+            location.href = dir;
         }else{
-            dir = 'fe?p=' + $('.selected').attr('dir')
-            location.href = dir
+            dir = 'fe?p=' + $('.selected').attr('dir');
+            location.href = dir;
         }
     }
 }
@@ -98,10 +124,10 @@ $('li').click(function() {
     // 選択されたファイルを配列に追加/削除
     if(href.includes($(this).attr('dir')) === false){
         href.push($(this).attr('dir'));
-        console.log(href)
+        console.log(href);
     }else{
         href = href.filter(item => (item.match($(this).attr('dir'))) == null);
-        console.log(href)
+        console.log(href);
     }
 
     // 選択がないとき
@@ -126,7 +152,6 @@ $('li').click(function() {
         del.setAttribute('onclick', 'delete_file()');
         copy.setAttribute('onclick', 'copy_file()');
 
-        console.log($('.selected').attr('filetype'))
         // 選択したものがファイルだったら
         if ($('.selected').attr('filetype') !== 'folder') {
             edit.style.cursor = 'pointer';
@@ -145,31 +170,31 @@ $('li').click(function() {
 document.addEventListener('keydown', function(event) {
     if (event.ctrlKey && event.key === 'c') {
         if(href.length !== 0){
-            copy_file()
+            copy_file();
         }
     }
 
     if (event.ctrlKey && event.key === 'v') {
         if(source != null){
-            paste_file()
+            paste_file();
         }
     }
 
     if (event.key === 'Enter') {
         if(href.length !== 0){
             if ($('.selected').attr('filetype') === 'folder') {
-                dir = '?p=' + $('.selected').attr('dir')
-                location.href = dir
+                dir = '?p=' + $('.selected').attr('dir');
+                location.href = dir;
             }else{
-                dir = 'fe?p=' + $('.selected').attr('dir')
-                location.href = dir
+                dir = 'fe?p=' + $('.selected').attr('dir');
+                location.href = dir;
             }
         }
     }
 
     if (event.key === 'Delete') {
         if(href.length !== 0){
-            delete_file()
+            delete_file();
         }
     }
 });
