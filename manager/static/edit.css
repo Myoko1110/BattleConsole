@@ -157,6 +157,7 @@ nav.globalMenuSp.active {
 .header_Mobile{
     width: 200px;
     margin: 0 0 0 20px;
+    cursor: pointer;
 }
 .header_Sel{
     margin: 5px 0;
@@ -309,6 +310,7 @@ nav.globalMenuSp.active {
 textarea{
     width: 95%;
     height: calc(100vh - 280px);
+    height: calc(100dvh - 280px);
     font-size: 15px;
     font-family: 'RictyDiminished', sans-serif;
     background-color: #fff;
