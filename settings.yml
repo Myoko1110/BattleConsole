@@ -8,8 +8,9 @@ root-directory: /home/myo/console/
 server:
   proxy:
     name: Proxy
+    jarfile: paper.jar
     directory: /home/myo/console/minecraft/proxy/
-    command: java -Xmx1G -Xms1G -jar waterfall.jar nogui
+    command: java -Xmx1G -Xms1G -jar {jarfile} nogui
     screen-id: mc-Proxy
     type: proxy
 
