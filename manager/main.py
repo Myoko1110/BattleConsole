@@ -1,8 +1,7 @@
 from manager import app, FileExplorer, ServerJob
 from manager import socketio
-from flask import render_template, request, redirect, make_response, Response, send_file
+from flask import render_template, request, redirect, make_response, send_file
 from datetime import datetime
-from http import HTTPStatus
 from pathlib import Path
 from werkzeug.utils import secure_filename
 import datetime
@@ -22,7 +21,7 @@ error = False
 with open('settings.yml', 'r', encoding="utf-8") as fs:
     settings = yaml.load(fs, Loader=yaml.SafeLoader)
 
-if settings['password'] == None or "":
+if settings['password'] is None or settings['password'] == "":
     print('\033[31m'+'[ConsoleError] Password is empty. Please set a password.'+'\033[0m')
     error = True
 
@@ -30,11 +29,20 @@ if not FileExplorer.FILE_EXPLORER_ROOT.exists():
     print('\033[31m'+'[ConsoleError] Invalid root path in settings.yml.'+'\033[0m')
     error = True
 
+for i in settings['server'].keys():
+    if not Path(settings['server'][i]['directory']).exists():
+        print('\033[31m' + f'[ConsoleError] Invalid server "{i}" directory in settings.yml.' + '\033[0m')
+        error = True
+    if settings['server'][i]['type'] not in ['proxy', 'minecraft']:
+        print('\033[31m' + f'[ConsoleError] Invalid server "{i}" type in settings.yml.' + '\033[0m')
+        error = True
+
 if error:
     sys.exit()
 
 Pass = settings['password']
 socketio_status = 'disconnect'
+
 
 def check_session():
     while True:
@@ -53,6 +61,8 @@ def check_session():
                 with open('manager/session.yml', 'w') as file:
                     yaml.safe_dump(data, file)
         time.sleep(60)
+
+
 threading.Thread(target=check_session, daemon=True).start()
 
 
@@ -65,20 +75,16 @@ def export_console():
     while True:
         with open('manager/status.yml', 'r') as s:
             status = yaml.load(s, Loader=yaml.SafeLoader)
-
         for s in settings['server'].keys():
-            try:
-                if status[s] == 'stop':
-                    console[s] = 'サーバーは起動していません'
-                if status[s] == 'loading' or status[s] == 'run':
-                    console[s] = re.sub(r'\x1b(\[|\(|\))[0-9;]*[A-Za-z]', '', ServerJob.console[s]).replace("> ", "")
-                if console != old:
-                    socketio.emit('console', {s: console[s]})
-            except KeyError:
-                continue
-        old = console
+            if status[s] == 'stop':
+                console[s] = 'サーバーは起動していません'
+            if status[s] == 'loading' or status[s] == 'run':
+                console[s] = re.sub(r'\x1b(\[|\(|\))[0-9;]*[A-Za-z]', '', ServerJob.console[s]).replace("> ", "")
+
+        socketio.emit('console', console)
         if socketio_status == 'disconnect':
             break
+        time.sleep(0.1)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -503,8 +509,49 @@ def file_copy():
         else:
             return redirect('login')
 
+@app.route("/fk")
+def file_cut():
+    """
+    ファイルの切り取り
+    引数:
+      GET ./?s=(切り取り元)&d=(切り取り先)
+    """
+    with open('manager/session.yml', 'r', encoding="utf-8") as f:
+        yml = yaml.load(f, Loader=yaml.SafeLoader)
+        true_keys = [key for key, value in yml.items() if value]
+        for i in true_keys:
+            if 'session' in request.cookies and request.cookies.get('session') == i:
+                # 引数の確認
+                source_path = request.args.get("s")  # 切り取り元のパス
+                to_path = request.args.get("d")  # 切り取り先のパス
 
-@app.route("/fd", methods=["GET", "POST"])
+                if source_path is None or source_path == '':
+                    return redirect(f'./file?p=./&i=e,切り取りするファイルのパスが指定されていません。')
+                if to_path is None or to_path == '':
+                    current_dir = request.args.get("s")
+                    return redirect(f'./file?p={current_dir}&i=e,切り取り先のパスが指定されていません。')
+
+                # パスの確認
+                source_path = Path(source_path)
+                if not source_path.exists():
+                    current_dir = Path(request.args.get("d")).parent
+                    return redirect(f'./file?p={current_dir}&i=e,切り取りするファイルのパスが無効です。')
+                to_path = Path(to_path)
+                if not to_path.exists() or to_path.is_file():
+                    current_dir = request.args.get("s")
+                    return redirect(f'./file?p={current_dir}&i=e,切り取り先のパスが無効です。')
+
+                if source_path.parent != to_path:
+                    shutil.move(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
+
+                # 問題がなければ、コピー先ファイルのフォルダを開かせる
+                current_dir = request.args.get("d")
+                return redirect(f'./file?p={current_dir}&i=s,ファイルを正常にコピ－しました。')
+        else:
+            return redirect('login')
+
+
+@app.route("/fd")
 def file_delete():
     """
     ファイルの削除
@@ -559,7 +606,53 @@ def file_delete():
 
                 # 問題がなければ、削除ファイルの元フォルダを開かせる
                 current_dir = path.parent
-                return redirect(f"./file?p={current_dir}&i=s,ファイルを正常に削除しました。")
+                return redirect(f"./file?p={current_dir}&i=s,ファイルを削除しました。")
+        else:
+            return redirect('login')
+
+
+@app.route("/fr")
+def file_rename():
+    """
+    ファイル名の変更
+    引数:
+      GET ./?p=(変更元)&d=(変更先)
+    """
+    with open('manager/session.yml', 'r', encoding="utf-8") as f:
+        yml = yaml.load(f, Loader=yaml.SafeLoader)
+        true_keys = [key for key, value in yml.items() if value]
+        for i in true_keys:
+            if 'session' in request.cookies and request.cookies.get('session') == i:
+
+                # 引数の確認
+                path = request.args.get("p")  # 変更元のパス
+                to_path = request.args.get("d")  # 変更先のパス
+                if path is None or path == '':
+                    return redirect(f'./file?p=.&i=e,ファイル名を変更するファイルのパスが指定されていません。')
+                if to_path is None or to_path == '':
+                    return redirect(f'./file?p=.&i=e,ファイル名を変更する先のパスが指定されていません。')
+
+                # パスの確認
+                path = Path(path)
+                if not path.exists():
+                    current_dir = Path(request.args.get("p")).parent
+                    return redirect(f'./file?p={current_dir}&i=e,ファイル名を変更するファイルのパスが無効です。')
+                to_path = Path(to_path)
+
+                if not to_path.parent.exists():
+                    return redirect(f'./file?p=.&i=e,ファイル名を変更するパスが無効です。')
+
+                if (FileExplorer.FILE_EXPLORER_ROOT / to_path).exists():
+                    current_dir = Path(request.args.get("p")).parent
+                    return redirect(f'./file?p={current_dir}&i=e,既に同じ名前のファイルがあります。')
+
+                # 名前の変更
+                os.rename(FileExplorer.FILE_EXPLORER_ROOT / path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
+
+                # 問題がなければ、変更先ファイルのフォルダを開かせる
+                current_dir = Path(request.args.get("p")).parent
+                return redirect(f'./file?p={current_dir}&i=s,ファイル名を変更しました。')
+
         else:
             return redirect('login')
 
