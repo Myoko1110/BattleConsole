@@ -426,7 +426,8 @@ li svg{
     width: 30px;
     height: 30px;
     fill: #123767;
-    padding: 9px;
+    padding: 5px;
+    margin: 10px 0;
     border-radius: 4px;
     transition: 0.3s ease-in-out all;
 }
@@ -447,11 +448,16 @@ li svg{
     background-color: #fff;
     border-radius: 30px;
     margin: 10px;
+    width: 100%;
+    max-width: 520px;
+    height: fit-content;
     padding: 20px;
+    box-sizing: border-box;
     box-shadow:  20px 20px 59px rgba(0, 0, 0, 0.06),
                 -20px -20px 59px rgba(0, 0, 0, 0.06);
     transform: scale(0, 0);
     transition: all 0.1s ease;
+    display: none;
 }
 .confirm_box.active{
     transform: scale(1, 1);
@@ -489,12 +495,46 @@ li svg{
 .confirm_okbox a{
     color: #fff;
 }
+
+.rename_ok{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.rename_okbox{
+    background-color: #1b6dd3;
+    padding: 5px 15px;
+    font-size: 25px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.rename_okbox a{
+    color: #fff;
+}
+.rename_box{
+    margin: 15px 0;
+    width: 100%;
+    max-width: 400px;
+    font-size: 30px;
+    text-align: center;
+    border: none;
+    outline: none;
+    border-bottom: 2px solid #b4b4b4;
+    transition: all 0.4s ease;
+    font-family: "Lato", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+}
+.rename_box:focus{
+    border-bottom: 2px solid #1b6dd3;
+}
 @media(min-width:471px){.br{display: none}}
 #confirm{
     display: flex;
     background-color: rgba(0, 0, 0, 0.27);
 }
 #copysvg{
+    fill: #a9a9a9;
+}
+#cutsvg{
     fill: #a9a9a9;
 }
 #delsvg{
@@ -504,6 +544,9 @@ li svg{
     fill: #a9a9a9;
 }
 #editsvg{
+    fill: #a9a9a9;
+}
+#rnmsvg{
     fill: #a9a9a9;
 }
 .selecting{
