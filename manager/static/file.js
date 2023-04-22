@@ -130,7 +130,7 @@ function paste_file(){
     if(source != null){
         location.href = './fc?s=' + source + '&d=' + path;
     }else{
-        location.href = './fk?s=' + cutsource + '&d=' + path;
+        location.href = './fm?s=' + cutsource + '&d=' + path;
     }
 }
 
