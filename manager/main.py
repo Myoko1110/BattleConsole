@@ -89,7 +89,7 @@ def export_console():
             status = yaml.load(s, Loader=yaml.SafeLoader)
         for s in settings['server'].keys():
             if status[s] == 'stop':
-                console[s] = 'サーバーは起動していません'
+                cmd[s] = 'サーバーは起動していません'
             if status[s] == 'loading' or status[s] == 'run':
                 cmd[s] = re.sub(r'\x1b\[.*?[@-~]', '', ServerJob.console[s]).replace("> ", "")
 
@@ -271,7 +271,7 @@ def file_io():
 
             # パスの確認
             out_dir = Path(out_dir)
-            if not out_dir.exists():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / out_dir).exists():
                 return redirect(f'./file?p=.&i=e,アップロード先のパスが無効です。')
 
             # 送信ファイルの確認
@@ -280,7 +280,7 @@ def file_io():
                 return redirect(f'./file?p=.&i=e,ファイル名が無効です。')
 
             # 送信ファイルの書き出し
-            file.save(FileExplorer.FILE_EXPLORER_ROOT / out_dir / secure_filename(file.filename))
+            file.save(str(FileExplorer.FILE_EXPLORER_ROOT / out_dir / secure_filename(file.filename)))
 
             # 問題がなければ、アップロード先のフォルダを開かせる
             current_dir = FileExplorer.normalize_path(out_dir)
@@ -294,7 +294,7 @@ def file_io():
 
             # パスの確認
             path = Path(path)
-            if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / path).exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
                 return redirect(f'./file?p=.&i=e,ダウンロードするファイルが無効です。')
 
             # ファイル出力
@@ -320,7 +320,7 @@ def file_edit():
 
             # パスの確認
             path = Path(path)
-            if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / path).exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
                 current_dir = Path(request.args.get("p")).parent
                 return redirect(f'./file?p={current_dir}&i=e,編集するファイルのパスが無効です。')
 
@@ -331,7 +331,7 @@ def file_edit():
                 return redirect(f'./fio?p={path}')
 
             # ファイルの絶対パスを取得
-            current_dir = FileExplorer.normalize_path(Path(request.args.get("p") or FileExplorer.FILE_EXPLORER_ROOT))
+            current_dir = FileExplorer.FILE_EXPLORER_ROOT / path
 
             # 中身を取得
             try:
@@ -350,7 +350,7 @@ def file_edit():
                 path = request.args.get("p")
 
                 # ファイルの絶対パスを取得
-                current_path = FileExplorer.normalize_path(Path(path or FileExplorer.FILE_EXPLORER_ROOT))
+                current_path = FileExplorer.FILE_EXPLORER_ROOT / path
 
                 # 入力された内容を指定
                 value = request.form['value']
@@ -397,26 +397,28 @@ def file_copy():
 
                 # パスの確認
                 source_path = Path(p)
-                if not source_path.exists():
+                if not (FileExplorer.FILE_EXPLORER_ROOT / source_path).exists():
                     current_dir = request.args.get("d")
                     return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
                 to_path = Path(to_path)
-                if not to_path.exists() or to_path.is_file():
+                if not (FileExplorer.FILE_EXPLORER_ROOT / to_path).exists() or (FileExplorer.FILE_EXPLORER_ROOT / to_path).is_file():
                     current_dir = request.args.get("d")
                     return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
 
                 # コピー先のファイルを参照
                 file_name = Path(source_path).name
                 current_path = FileExplorer.normalize_path(Path(to_path or FileExplorer.FILE_EXPLORER_ROOT))
-                copy_to = current_path.joinpath(file_name)
+                copy_to = current_path / file_name
 
                 # コピー先に同じ名前のファイルがあった場合
-                if copy_to.exists():
-                    file_obj = "COPY__" + str(file_name)
-                    to_path_copy = to_path.joinpath(file_obj)
+                if (FileExplorer.FILE_EXPLORER_ROOT / copy_to).exists():
+
+                    # 語尾にコピーをつける (windows風)
+                    file_obj = str(Path(file_name).stem) + " - コピー" + str(Path(file_name).suffix)
+                    to_path_copy = to_path / file_obj
 
                     try:
-                        if source_path.is_dir():
+                        if (FileExplorer.FILE_EXPLORER_ROOT / source_path).is_dir():
                             shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
                                             FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
                         else:
@@ -427,7 +429,7 @@ def file_copy():
 
                 else:
                     try:
-                        if source_path.is_dir():
+                        if (FileExplorer.FILE_EXPLORER_ROOT / source_path).is_dir():
                             shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
                                             FileExplorer.FILE_EXPLORER_ROOT / to_path)
                         else:
@@ -449,25 +451,25 @@ def file_copy():
 
             # パスの確認
             source_path = Path(source_paths)
-            if not source_path.exists():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / source_path).exists():
                 current_dir = request.args.get("d")
                 return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
             to_path = Path(to_path)
-            if not to_path.exists() or to_path.is_file():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / to_path).exists() or (FileExplorer.FILE_EXPLORER_ROOT / to_path).is_file():
                 return redirect(f'./file?p=./&i=e,コピー先のパスが無効です。')
 
             # コピー先のファイルを参照
             file_name = Path(source_path).name
             current_path = FileExplorer.normalize_path(Path(to_path or FileExplorer.FILE_EXPLORER_ROOT))
-            copy_to = current_path.joinpath(file_name)
+            copy_to = current_path / file_name
 
             # コピー先に同じ名前のファイルがあった場合
-            if copy_to.exists():
-                file_obj = "COPY__" + str(Path(source_path).name)
-                to_path_copy = to_path.joinpath(file_obj)
+            if (FileExplorer.FILE_EXPLORER_ROOT / copy_to).exists():
+                file_obj = str(Path(file_name).stem) + " - コピー" + str(Path(file_name).suffix)
+                to_path_copy = to_path / file_obj
 
                 try:
-                    if source_path.is_dir():
+                    if (FileExplorer.FILE_EXPLORER_ROOT / source_path).is_dir():
                         shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
                                         FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
                     else:
@@ -479,7 +481,7 @@ def file_copy():
             else:
                 # フォルダをコピー
                 try:
-                    if source_path.is_dir():
+                    if (FileExplorer.FILE_EXPLORER_ROOT / source_path).is_dir():
                         shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
                                         FileExplorer.FILE_EXPLORER_ROOT / to_path)
                     else:
@@ -518,48 +520,48 @@ def file_move():
 
                 # パスの確認
                 source_path = Path(source_path)
-                if not source_path.exists():
+                if not (FileExplorer.FILE_EXPLORER_ROOT / source_path).exists():
                     current_dir = request.args.get("d")
                     return redirect(f'./file?p={current_dir}&i=e,切り取りするファイルのパスが無効です。')
 
                 # 移動先がファイルだった場合
                 to_path = Path(to_path)
-                if to_path.is_file():
+                if (FileExplorer.FILE_EXPLORER_ROOT / to_path).is_file():
                     current_dir = Path(source_path).parent
                     return redirect(f'./file?p={current_dir}&i=e,切り取り先のパスが無効です。')
 
                 # 移動先に同じ名前のファイルがあった場合
-                if to_path.joinpath(source_path.name).exists():
+                if (FileExplorer.FILE_EXPLORER_ROOT / to_path / source_path.name).exists():
                     current_dir = Path(source_path).parent
                     return redirect(f'./file?p={current_dir}&i=e,既に同じ名前のファイルが存在します。')
 
                 # ファイルの移動
                 if source_path.parent != to_path:  # 移動元と移動先が同じだったら何もしない
                     shutil.move(FileExplorer.FILE_EXPLORER_ROOT / source_path,
-                                FileExplorer.FILE_EXPLORER_ROOT / to_path)
+                                FileExplorer.FILE_EXPLORER_ROOT / to_path / source_path.name)
 
         else:
             # パスの確認
             source_path = Path(source_paths)
-            if not source_path.exists():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / source_path).exists():
                 current_dir = Path(request.args.get("d")).parent
                 return redirect(f'./file?p={current_dir}&i=e,切り取りするファイルのパスが無効です。')
 
             # 移動先がファイルだった場合
             to_path = Path(to_path)
-            if not to_path.exists() or to_path.is_file():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / to_path).exists() or (FileExplorer.FILE_EXPLORER_ROOT / to_path).is_file():
                 current_dir = request.args.get("s")
                 return redirect(f'./file?p={current_dir}&i=e,切り取り先のパスが無効です。')
 
             # 移動先に同じ名前のファイルがあった場合
-            if to_path.joinpath(source_path.name).exists():
+            if (FileExplorer.FILE_EXPLORER_ROOT / to_path / source_path.name).exists():
                 current_dir = Path(source_path).parent
                 return redirect(f'./file?p={current_dir}&i=e,既に同じ名前のファイルが存在します。')
 
             # ファイルの移動
             if source_path.parent != to_path:
                 shutil.move(FileExplorer.FILE_EXPLORER_ROOT / source_path,
-                            FileExplorer.FILE_EXPLORER_ROOT / to_path)
+                            FileExplorer.FILE_EXPLORER_ROOT / to_path / source_path.name)
 
         # 問題がなければ、移動先ファイルのフォルダを開かせる
         current_dir = request.args.get("d")
@@ -590,11 +592,11 @@ def file_delete():
             # 1つずつ処理
             for p in path:
                 path = Path(p)
-                if not path.exists():
+                if not (FileExplorer.FILE_EXPLORER_ROOT / path).exists():
                     current_dir = str(Path(path).parent)
                     return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
                 try:
-                    if path.is_dir():
+                    if (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
                         shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
                     else:
                         os.remove(FileExplorer.FILE_EXPLORER_ROOT / path)
@@ -606,11 +608,11 @@ def file_delete():
             return redirect(f"./file?p={current_dir}&i=s,ファイルを削除しました。")
         else:
             path = Path(paths)
-            if not path.exists():
+            if not (FileExplorer.FILE_EXPLORER_ROOT / path).exists():
                 current_dir = str(Path(path).parent)
                 return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
             try:
-                if path.is_dir():
+                if (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
                     shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
                 else:
                     os.remove(FileExplorer.FILE_EXPLORER_ROOT / path)
@@ -642,13 +644,11 @@ def file_rename():
 
         # パスの確認
         path = Path(path)
-        if not path.exists():
+        print(FileExplorer.FILE_EXPLORER_ROOT / path)
+        if not (FileExplorer.FILE_EXPLORER_ROOT / path).exists():
             current_dir = Path(request.args.get("p")).parent
             return redirect(f'./file?p={current_dir}&i=e,ファイル名を変更するファイルのパスが無効です。')
         to_path = Path(to_path)
-
-        if not to_path.parent.exists():
-            return redirect(f'./file?p=.&i=e,ファイル名を変更するパスが無効です。')
 
         if (FileExplorer.FILE_EXPLORER_ROOT / to_path).exists():
             current_dir = Path(request.args.get("p")).parent
