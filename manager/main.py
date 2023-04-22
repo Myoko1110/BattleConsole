@@ -1,20 +1,21 @@
-from manager import app, FileExplorer, ServerJob
-from manager import socketio
+from manager import app, socketio, FileExplorer, ServerJob
 from flask import render_template, request, redirect, make_response, send_file
-from datetime import datetime
-from pathlib import Path
-from werkzeug.utils import secure_filename
+
 import datetime
-import time
-import pytz
+from pathlib import Path
 import mimetypes
 import os
-import shutil
-import yaml
 import re
+import secrets
+import shutil
 import sys
 import threading
-import secrets
+import time
+
+from werkzeug.utils import secure_filename
+import pytz
+import yaml
+
 
 error = False
 
@@ -66,11 +67,22 @@ def check_session():
 threading.Thread(target=check_session, daemon=True).start()
 
 
+def check_cookie():
+    with open('manager/session.yml', 'r', encoding="utf-8") as f:
+        yml = yaml.load(f, Loader=yaml.SafeLoader)
+        true_keys = [key for key, value in yml.items() if value]
+        for session in true_keys:
+            if 'session' in request.cookies and request.cookies.get('session') == session:
+                return True
+        else:
+            return False
+
+
 def export_console():
     global socketio_status
 
-    old = {}
-    console = {}
+    # old = {}
+    cmd = {}
 
     while True:
         with open('manager/status.yml', 'r') as s:
@@ -79,9 +91,9 @@ def export_console():
             if status[s] == 'stop':
                 console[s] = 'サーバーは起動していません'
             if status[s] == 'loading' or status[s] == 'run':
-                console[s] = re.sub(r'\x1b(\[|\(|\))[0-9;]*[A-Za-z]', '', ServerJob.console[s]).replace("> ", "")
+                cmd[s] = re.sub(r'\x1b\[.*?[@-~]', '', ServerJob.console[s]).replace("> ", "")
 
-        socketio.emit('console', console)
+        socketio.emit('console', cmd)
         if socketio_status == 'disconnect':
             break
         time.sleep(0.1)
@@ -90,22 +102,17 @@ def export_console():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'GET':
-        with open('manager/session.yml', 'r', encoding="utf-8") as f:
-            yml = yaml.load(f, Loader=yaml.SafeLoader)
-            true_keys = [key for key, value in yml.items() if value]
-
-            for i in true_keys:
-                if 'session' in request.cookies and request.cookies.get('session') == i:
-                    return redirect('/')
-            else:
-                return render_template('login.html')
+        if check_cookie():
+            return redirect('/')
+        else:
+            return render_template('login.html')
 
     if request.method == 'POST':
         password = request.form['pass']
 
         if password != Pass:  # パスワードが違うとき
-            error = 'パスワードが間違っています'
-            return render_template('login.html', error=error)
+            err = 'パスワードが間違っています'
+            return render_template('login.html', error=err)
 
         else:  # パスワードが合っているとき
             # 乱数作成
@@ -133,94 +140,81 @@ def login():
 
 @app.route('/')
 def dash():
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
+    if check_cookie():
+        # statusを取得
+        with open('manager/status.yml', 'r') as s:
+            status = yaml.load(s, Loader=yaml.SafeLoader)
 
-                # statusを取得
-                with open('manager/status.yml', 'r') as s:
-                    status = yaml.load(s, Loader=yaml.SafeLoader)
+        return render_template('dash.html', status=status, server=settings)
 
-                return render_template('dash.html', status=status, server=settings)
-        else:
-            return redirect('login')
+    else:
+        return redirect('login')
 
 
 @app.route('/servers', methods=["GET", "POST"])
 def servers():
-    with open('manager/session.yml', 'r') as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                if request.method == 'GET':
+    if check_cookie():
+        if request.method == 'GET':
+            # statusを取得
+            with open('manager/status.yml', 'r') as s:
+                status = yaml.load(s, Loader=yaml.SafeLoader)
+            socketio.emit('status', {'proxy': status['proxy'], 'lobby': status['lobby'], 'main': status['main']})
 
-                    # statusを取得
-                    with open('manager/status.yml', 'r') as s:
-                        status = yaml.load(s, Loader=yaml.SafeLoader)
-                    socketio.emit('status', {'proxy': status['proxy'], 'lobby': status['lobby'], 'main': status['main']})
+            return render_template('servers.html', status=status, server=settings)
 
-                    return render_template('servers.html', status=status, server=settings)
+        if request.method == 'POST':
+            with open('manager/status.yml', 'r') as s:
+                status = yaml.load(s, Loader=yaml.SafeLoader)
+            server = list(request.form.items())[0][0]
+            if status[server] == "stop":
 
-                if request.method == 'POST':
-                    with open('manager/status.yml', 'r') as s:
-                        status = yaml.load(s, Loader=yaml.SafeLoader)
-                    server = list(request.form.items())[0][0]
-                    if status[server] == "stop":
+                # サーバーを起動、statusをrunにする
+                t = threading.Thread(target=ServerJob.start_server, args=(server,))
+                t.start()
+                status[server] = "loading"
+                socketio.emit('status', {server: 'loading'})
 
-                        # サーバーを起動、statusをrunにする
-                        t = threading.Thread(target=ServerJob.start_server, args=(server,))
-                        t.start()
-                        status[server] = "loading"
-                        socketio.emit('status', {server: 'loading'})
+                # 上書き
+                with open('manager/status.yml', 'w') as f:
+                    yaml.dump(status, f, default_flow_style=False)
 
-                        # 上書き
-                        with open('manager/status.yml', 'w') as f:
-                            yaml.dump(status, f, default_flow_style=False)
+            elif status[server] == "run":
 
-                    elif status[server] == "run":
+                # サーバーを停止、statusをstopにする
+                ServerJob.stop_server(server)
+                status[server] = "loading"
+                socketio.emit('status', {server: 'loading'})
 
-                        # サーバーを停止、statusをstopにする
-                        ServerJob.stop_server(server)
-                        status[server] = "loading"
-                        socketio.emit('status', {server: 'loading'})
+                # 上書き
+                with open('manager/status.yml', 'w') as f:
+                    yaml.dump(status, f, default_flow_style=False)
 
-                        # 上書き
-                        with open('manager/status.yml', 'w') as f:
-                            yaml.dump(status, f, default_flow_style=False)
+        """
+        elif 'proxyR' in request.form:
 
-                """
-                elif 'proxyR' in request.form:
+            # サーバーを再起動させる
+            t = threading.Thread(target=mcsv.restart_server, args=('proxy',))
+            t.start()
+            status['proxy'] = "loading"
+            socketio.emit('status', {'proxy': 'loading'})
 
-                    # サーバーを再起動させる
-                    t = threading.Thread(target=mcsv.restart_server, args=('proxy',))
-                    t.start()
-                    status['proxy'] = "loading"
-                    socketio.emit('status', {'proxy': 'loading'})
+        """
 
-                """
-
-                return redirect('servers')
-        else:
-            return redirect('login')
+        return redirect('servers')
+    else:
+        return redirect('login')
 
 
-@app.route('/cmd', methods=['POST', 'GET'])
+@app.route('/cmd')
 def console():
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                server = request.args.get("s")
-                if server == "" or server is None:
-                    return redirect(f'?s={list(settings["server"].keys())[0]}')
+    if check_cookie():
+        server = request.args.get("s")
+        if server == "" or server is None:
+            return redirect(f'?s={list(settings["server"].keys())[0]}')
 
-                return render_template('console.html', server=settings)
-        else:
-            return redirect('login')
+        return render_template('console.html', server=settings)
+    else:
+        return redirect('login')
 
 
 @app.route("/file")
@@ -230,41 +224,37 @@ def file_explorer():
     引数:
       GET ./?p=(フォルダパス)
     """
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
+    if check_cookie():
 
-                if request.args.get("p") == "" or request.args.get("p") is None:
-                    return redirect('?p=.')
+        if request.args.get("p") == "" or request.args.get("p") is None:
+            return redirect('?p=.')
 
-                current_dir = Path(request.args.get("p") or FileExplorer.FILE_EXPLORER_ROOT)
+        current_dir = Path(request.args.get("p") or FileExplorer.FILE_EXPLORER_ROOT)
 
-                # 存在しないパスだったら、安全な限り存在する上の階層に移動する
-                while not (
-                        FileExplorer.FILE_EXPLORER_ROOT / current_dir).exists() and FileExplorer.is_safe_path(current_dir):
-                    current_dir = current_dir / ".."
+        # 存在しないパスだったら、安全な限り存在する上の階層に移動する
+        while not (
+                FileExplorer.FILE_EXPLORER_ROOT / current_dir).exists() and FileExplorer.is_safe_path(current_dir):
+            current_dir = current_dir / ".."
 
-                # 安全なパスではなかったら、rootパスにリダイレクト
-                if not FileExplorer.is_safe_path(current_dir):
-                    return redirect("?p=.")
+        # 安全なパスではなかったら、rootパスにリダイレクト
+        if not FileExplorer.is_safe_path(current_dir):
+            return redirect("?p=.")
 
-                current_dir = FileExplorer.normalize_path(current_dir)
+        current_dir = FileExplorer.normalize_path(current_dir)
 
-                _args = dict(
-                    Path=Path,
-                    root=FileExplorer.FILE_EXPLORER_ROOT,
-                    cwd=current_dir.as_posix(),
-                    sorted_iterdir=FileExplorer.sorted_iterdir,
-                    number=len(FileExplorer.sorted_iterdir(FileExplorer.FILE_EXPLORER_ROOT / current_dir.as_posix()))
-                )
-                return render_template('file.html', **_args)
-        else:
-            return redirect('login')
+        _args = dict(
+            Path=Path,
+            root=FileExplorer.FILE_EXPLORER_ROOT,
+            cwd=current_dir.as_posix(),
+            sorted_iterdir=FileExplorer.sorted_iterdir,
+            number=len(FileExplorer.sorted_iterdir(FileExplorer.FILE_EXPLORER_ROOT / current_dir.as_posix()))
+        )
+        return render_template('file.html', **_args)
+    else:
+        return redirect('login')
 
 
-@app.route("/fio", methods=["GET", "POST", "DELETE"])
+@app.route("/fio", methods=["GET", "POST"])
 def file_io():
     """
     ファイルの入出力
@@ -272,50 +262,45 @@ def file_io():
       GET    ./?p=(ダウンロードするファイルのパス)
       POST   ./?d=(アップロード先のフォルダパス)
     """
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
+    if check_cookie():
+        if request.method == "POST":  # upload
+            # 引数の確認
+            out_dir = request.args.get("d")  # アップロード先ディレクトリパスを指定
+            if out_dir is None or out_dir == '':
+                return redirect(f'./file?p=.&i=e,アップロード先のパスが指定されていません。')
 
-                if request.method == "POST":  # upload
-                    # 引数の確認
-                    out_dir = request.args.get("d")  # アップロード先ディレクトリパスを指定
-                    if out_dir is None or out_dir == '':
-                        return redirect(f'./file?p=.&i=e,アップロード先のパスが指定されていません。')
+            # パスの確認
+            out_dir = Path(out_dir)
+            if not out_dir.exists():
+                return redirect(f'./file?p=.&i=e,アップロード先のパスが無効です。')
 
-                    # パスの確認
-                    out_dir = Path(out_dir)
-                    if not out_dir.exists():
-                        return redirect(f'./file?p=.&i=e,アップロード先のパスが無効です。')
+            # 送信ファイルの確認
+            file = request.files["file"]
+            if not file:
+                return redirect(f'./file?p=.&i=e,ファイル名が無効です。')
 
-                    # 送信ファイルの確認
-                    file = request.files["file"]
-                    if not file:
-                        return redirect(f'./file?p=.&i=e,ファイル名が無効です。')
+            # 送信ファイルの書き出し
+            file.save(FileExplorer.FILE_EXPLORER_ROOT / out_dir / secure_filename(file.filename))
 
-                    # 送信ファイルの書き出し
-                    file.save(FileExplorer.FILE_EXPLORER_ROOT / out_dir / secure_filename(file.filename))
+            # 問題がなければ、アップロード先のフォルダを開かせる
+            current_dir = FileExplorer.normalize_path(out_dir)
+            return redirect(f"./file?p={current_dir.as_posix()}&i=s,ファイルをアップロードしました。")
 
-                    # 問題がなければ、アップロード先のフォルダを開かせる
-                    current_dir = FileExplorer.normalize_path(out_dir)
-                    return redirect(f"./file?p={current_dir.as_posix()}&i=s,ファイルを正常にアップロードしました。")
+        else:  # download
+            # 引数の確認
+            path = request.args.get("p")
+            if path is None or path == '':
+                return redirect(f'./file?p=.&i=e,ダウンロードするファイルが指定されていません。')
 
-                else:  # download
-                    # 引数の確認
-                    path = request.args.get("p")
-                    if path is None or path == '':
-                        return redirect(f'./file?p=.&i=e,ダウンロードするファイルが指定されていません。')
+            # パスの確認
+            path = Path(path)
+            if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
+                return redirect(f'./file?p=.&i=e,ダウンロードするファイルが無効です。')
 
-                    # パスの確認
-                    path = Path(path)
-                    if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
-                        return redirect(f'./file?p=.&i=e,ダウンロードするファイルが無効です。')
-
-                    # ファイル出力
-                    return send_file(FileExplorer.FILE_EXPLORER_ROOT / path, mimetype=mimetypes.guess_extension(path.name))
-        else:
-            return redirect('login')
+            # ファイル出力
+            return send_file(FileExplorer.FILE_EXPLORER_ROOT / path, mimetype=mimetypes.guess_extension(path.name))
+    else:
+        return redirect('login')
 
 
 @app.route("/fe", methods=["GET", "POST"])
@@ -325,72 +310,68 @@ def file_edit():
     引数:
       GET    ./?p=(編集するファイルのパス)
     """
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                if request.method == "GET":  # edit
-                    # 引数の確認
-                    path = request.args.get("p")  # 編集ファイルの対象パスを指定
+    if check_cookie():
+        if request.method == "GET":  # edit
+            # 引数の確認
+            path = request.args.get("p")  # 編集ファイルの対象パスを指定
 
-                    if path is None or path == '':
-                        return redirect(f'./file?p=./&i=e,編集するファイルのパスが指定されていません。')
+            if path is None or path == '':
+                return redirect(f'./file?p=./&i=e,編集するファイルのパスが指定されていません。')
 
-                    # パスの確認
-                    path = Path(path)
-                    if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
-                        current_dir = Path(request.args.get("p")).parent
-                        return redirect(f'./file?p={current_dir}&i=e,編集するファイルのパスが無効です。')
+            # パスの確認
+            path = Path(path)
+            if not path.exists() or (FileExplorer.FILE_EXPLORER_ROOT / path).is_dir():
+                current_dir = Path(request.args.get("p")).parent
+                return redirect(f'./file?p={current_dir}&i=e,編集するファイルのパスが無効です。')
 
-                    # ファイル名を取得し、テキストファイルでなければfioに返す
-                    file_name = Path(request.args.get("p")).name
-                    if file_name.endswith('.jar' or '.gz' or '.png' or '.jpg' or '.jpeg' or '.gif' or '.webp' or
-                                          '.mp4' or '.mov' or '.mp3' or '.m4a' or '.wav'):
-                        return redirect(f'./fio?p={path}')
+            # ファイル名を取得し、テキストファイルでなければfioに返す
+            file_name = Path(request.args.get("p")).name
+            if file_name.endswith('.jar' or '.gz' or '.png' or '.jpg' or '.jpeg' or '.gif' or '.webp' or
+                                  '.mp4' or '.mov' or '.mp3' or '.m4a' or '.wav'):
+                return redirect(f'./fio?p={path}')
 
-                    # ファイルの絶対パスを取得
-                    current_dir = FileExplorer.normalize_path(Path(request.args.get("p") or FileExplorer.FILE_EXPLORER_ROOT))
+            # ファイルの絶対パスを取得
+            current_dir = FileExplorer.normalize_path(Path(request.args.get("p") or FileExplorer.FILE_EXPLORER_ROOT))
 
-                    # 中身を取得
-                    try:
-                        with open(current_dir, 'r', encoding='utf-8') as f:
-                            v = f.read()
-                            return render_template('edit.html', file=file_name, value=v)
+            # 中身を取得
+            try:
+                with open(current_dir, 'r', encoding='utf-8') as f:
+                    v = f.read()
+                    return render_template('edit.html', file=file_name, value=v)
 
-                    # UnicodeDecodeErrorが起きたらfioに返す
-                    except UnicodeDecodeError:
-                        return redirect(f'./fio?p={path}')
+            # UnicodeDecodeErrorが起きたらfioに返す
+            except UnicodeDecodeError:
+                return redirect(f'./fio?p={path}')
 
-                elif request.method == "POST":
-                    if request.form['send'] == '保存':
+        elif request.method == "POST":
+            if request.form['send'] == '保存':
 
-                        # 編集ファイルの対象パスを指定
-                        path = request.args.get("p")
+                # 編集ファイルの対象パスを指定
+                path = request.args.get("p")
 
-                        # ファイルの絶対パスを取得
-                        current_path = FileExplorer.normalize_path(Path(path or FileExplorer.FILE_EXPLORER_ROOT))
+                # ファイルの絶対パスを取得
+                current_path = FileExplorer.normalize_path(Path(path or FileExplorer.FILE_EXPLORER_ROOT))
 
-                        # 入力された内容を指定
-                        value = request.form['value']
+                # 入力された内容を指定
+                value = request.form['value']
 
-                        # ファイルに上書き
-                        with open(current_path, 'w', encoding='utf-8', newline="\n") as f:
-                            f.write(value)
+                # ファイルに上書き
+                with open(current_path, 'w', encoding='utf-8', newline="\n") as f:
+                    f.write(value)
 
-                        # 編集したファイルのフォルダを開かせる
-                        current_dir = Path(path).parent
-                        return redirect(f'./file?p={current_dir}&i=s,ファイルを正常に保存しました。')
+                # 編集したファイルのフォルダを開かせる
+                current_dir = Path(path).parent
+                return redirect(f'./file?p={current_dir}&i=s,ファイルを保存しました。')
 
-                    elif request.form['send'] == 'キャンセル':
+            elif request.form['send'] == 'キャンセル':
 
-                        path = request.args.get("p")
+                path = request.args.get("p")
 
-                        # キャンセルしたファイルのフォルダを開かせる
-                        current_dir = Path(path).parent
-                        return redirect(f'./file?p={current_dir}')
-        else:
-            return redirect('login')
+                # キャンセルしたファイルのフォルダを開かせる
+                current_dir = Path(path).parent
+                return redirect(f'./file?p={current_dir}')
+    else:
+        return redirect('login')
 
 
 @app.route("/fc")
@@ -400,155 +381,191 @@ def file_copy():
     引数:
       GET ./?s=(コピー元)&d=(コピー先)
     """
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                # 引数の確認
-                source_paths = request.args.get("s")  # コピー元のパス
-                to_path = request.args.get("d")  # コピー先のパス
+    if check_cookie():
+        # 引数の確認
+        source_paths = request.args.get("s")  # コピー元のパス
+        to_path = request.args.get("d")  # コピー先のパス
 
-                if source_paths is None or source_paths == '':
-                    return redirect(f'./file?p=./&i=e,コピーするファイルのパスが指定されていません。')
-                if to_path is None or to_path == '':
-                    return redirect(f'./file?p=./&i=e,コピー先のパスが指定されていません。')
+        if source_paths is None or source_paths == '':
+            return redirect(f'./file?p=./&i=e,コピーするファイルのパスが指定されていません。')
+        if to_path is None or to_path == '':
+            return redirect(f'./file?p=./&i=e,コピー先のパスが指定されていません。')
 
-                if ',' in source_paths:
-                    source_path = source_paths.split(',')
-                    for i in source_path:
+        if ',' in source_paths:
+            source_path = source_paths.split(',')
+            for p in source_path:
 
-                        # パスの確認
-                        source_path = Path(i)
-                        if not source_path.exists():
-                            current_dir = request.args.get("d")
-                            return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
-                        to_path = Path(to_path)
-                        if not to_path.exists() or to_path.is_file():
-                            current_dir = request.args.get("d")
-                            return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
-
-                        # コピー先のファイルを参照
-                        file_name = Path(source_path).name
-                        current_path = FileExplorer.normalize_path(Path(to_path or FileExplorer.FILE_EXPLORER_ROOT))
-                        copy_to = current_path.joinpath(file_name)
-
-                        # コピー先に同じ名前のファイルがあった場合
-                        if copy_to.exists():
-                            file_obj = "COPY__" + str(Path(source_path).name)
-                            to_path_copy = to_path.joinpath(file_obj)
-
-                            try:
-                                if source_path.is_dir():
-                                    shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
-                                else:
-                                    shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
-                            except Exception:
-                                raise
-
-                        else:
-                            try:
-                                if source_path.is_dir():
-                                    shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
-                                else:
-                                    shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
-                            except Exception:
-                                raise
-
-                        # 問題がなければ、コピー先ファイルのフォルダを開かせる
+                # パスの確認
+                source_path = Path(p)
+                if not source_path.exists():
                     current_dir = request.args.get("d")
-                    return redirect(f'./file?p={current_dir}&i=s,ファイルを正常にコピーしました。')
+                    return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
+                to_path = Path(to_path)
+                if not to_path.exists() or to_path.is_file():
+                    current_dir = request.args.get("d")
+                    return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
+
+                # コピー先のファイルを参照
+                file_name = Path(source_path).name
+                current_path = FileExplorer.normalize_path(Path(to_path or FileExplorer.FILE_EXPLORER_ROOT))
+                copy_to = current_path.joinpath(file_name)
+
+                # コピー先に同じ名前のファイルがあった場合
+                if copy_to.exists():
+                    file_obj = "COPY__" + str(file_name)
+                    to_path_copy = to_path.joinpath(file_obj)
+
+                    try:
+                        if source_path.is_dir():
+                            shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                            FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
+                        else:
+                            shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                        FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
+                    except Exception:
+                        raise
 
                 else:
-                    if source_paths is None or source_paths == '':
-                        return redirect(f'./file?p=./&i=e,コピーするファイルのパスが無効です。')
-                    if to_path is None or to_path == '':
-                        current_dir = request.args.get("d")
-                        return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
+                    try:
+                        if source_path.is_dir():
+                            shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                            FileExplorer.FILE_EXPLORER_ROOT / to_path)
+                        else:
+                            shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                        FileExplorer.FILE_EXPLORER_ROOT / to_path)
+                    except Exception:
+                        raise
 
-                    # パスの確認
-                    source_path = Path(source_paths)
-                    if not source_path.exists():
-                        current_dir = request.args.get("d")
-                        return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
-                    to_path = Path(to_path)
-                    if not to_path.exists() or to_path.is_file():
-                        return redirect(f'./file?p=./&i=e,コピー先のパスが無効です。')
+                # 問題がなければ、コピー先ファイルのフォルダを開かせる
+            current_dir = request.args.get("d")
+            return redirect(f'./file?p={current_dir}&i=s,ファイルをコピーしました。')
 
-                    # コピー先のファイルを参照
-                    file_name = Path(source_path).name
-                    current_path = FileExplorer.normalize_path(Path(to_path or FileExplorer.FILE_EXPLORER_ROOT))
-                    copy_to = current_path.joinpath(file_name)
-
-                    # コピー先に同じ名前のファイルがあった場合
-                    if copy_to.exists():
-                        file_obj = "COPY__" + str(Path(source_path).name)
-                        to_path_copy = to_path.joinpath(file_obj)
-
-                        try:
-                            if source_path.is_dir():
-                                shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
-                            else:
-                                shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
-                        except Exception:
-                            raise
-
-                    else:
-                        # フォルダをコピー
-                        try:
-                            if source_path.is_dir():
-                                shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
-                            else:
-                                shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
-                        except Exception:
-                            raise
-
-                    # 問題がなければ、コピー先ファイルのフォルダを開かせる
-                    current_dir = request.args.get("d")
-                    return redirect(f'./file?p={current_dir}&i=s,ファイルを正常にコピ－しました。')
         else:
-            return redirect('login')
+            if source_paths is None or source_paths == '':
+                return redirect(f'./file?p=./&i=e,コピーするファイルのパスが無効です。')
+            if to_path is None or to_path == '':
+                current_dir = request.args.get("d")
+                return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
 
-@app.route("/fk")
-def file_cut():
+            # パスの確認
+            source_path = Path(source_paths)
+            if not source_path.exists():
+                current_dir = request.args.get("d")
+                return redirect(f'./file?p={current_dir}&i=e,コピーするファイルのパスが無効です。')
+            to_path = Path(to_path)
+            if not to_path.exists() or to_path.is_file():
+                return redirect(f'./file?p=./&i=e,コピー先のパスが無効です。')
+
+            # コピー先のファイルを参照
+            file_name = Path(source_path).name
+            current_path = FileExplorer.normalize_path(Path(to_path or FileExplorer.FILE_EXPLORER_ROOT))
+            copy_to = current_path.joinpath(file_name)
+
+            # コピー先に同じ名前のファイルがあった場合
+            if copy_to.exists():
+                file_obj = "COPY__" + str(Path(source_path).name)
+                to_path_copy = to_path.joinpath(file_obj)
+
+                try:
+                    if source_path.is_dir():
+                        shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                        FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
+                    else:
+                        shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                    FileExplorer.FILE_EXPLORER_ROOT / to_path_copy)
+                except Exception:
+                    raise
+
+            else:
+                # フォルダをコピー
+                try:
+                    if source_path.is_dir():
+                        shutil.copytree(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                        FileExplorer.FILE_EXPLORER_ROOT / to_path)
+                    else:
+                        shutil.copy(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                    FileExplorer.FILE_EXPLORER_ROOT / to_path)
+                except Exception:
+                    raise
+
+            # 問題がなければ、コピー先ファイルのフォルダを開かせる
+            current_dir = request.args.get("d")
+            return redirect(f'./file?p={current_dir}&i=s,ファイルをコピ－しました。')
+    else:
+        return redirect('login')
+
+
+@app.route("/fm")
+def file_move():
     """
-    ファイルの切り取り
+    ファイルの移動(カット)
     引数:
-      GET ./?s=(切り取り元)&d=(切り取り先)
+      GET ./?s=(移動元)&d=(移動先)
     """
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                # 引数の確認
-                source_path = request.args.get("s")  # 切り取り元のパス
-                to_path = request.args.get("d")  # 切り取り先のパス
+    if check_cookie():
+        # 引数の確認
+        source_paths = request.args.get("s")  # 移動元のパス
+        to_path = request.args.get("d")  # 移動先のパス
 
-                if source_path is None or source_path == '':
-                    return redirect(f'./file?p=./&i=e,切り取りするファイルのパスが指定されていません。')
-                if to_path is None or to_path == '':
-                    current_dir = request.args.get("s")
-                    return redirect(f'./file?p={current_dir}&i=e,切り取り先のパスが指定されていません。')
+        if source_paths is None or source_paths == '':
+            return redirect(f'./file?p=.&i=e,切り取りするファイルのパスが指定されていません。')
+        if to_path is None or to_path == '':
+            return redirect(f'./file?p=.&i=e,切り取り先のパスが指定されていません。')
+
+        # パスが複数ある場合
+        if ',' in source_paths:
+            for source_path in source_paths.split(','):
 
                 # パスの確認
                 source_path = Path(source_path)
                 if not source_path.exists():
-                    current_dir = Path(request.args.get("d")).parent
+                    current_dir = request.args.get("d")
                     return redirect(f'./file?p={current_dir}&i=e,切り取りするファイルのパスが無効です。')
+
+                # 移動先がファイルだった場合
                 to_path = Path(to_path)
-                if not to_path.exists() or to_path.is_file():
-                    current_dir = request.args.get("s")
+                if to_path.is_file():
+                    current_dir = Path(source_path).parent
                     return redirect(f'./file?p={current_dir}&i=e,切り取り先のパスが無効です。')
 
-                if source_path.parent != to_path:
-                    shutil.move(FileExplorer.FILE_EXPLORER_ROOT / source_path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
+                # 移動先に同じ名前のファイルがあった場合
+                if to_path.joinpath(source_path.name).exists():
+                    current_dir = Path(source_path).parent
+                    return redirect(f'./file?p={current_dir}&i=e,既に同じ名前のファイルが存在します。')
 
-                # 問題がなければ、コピー先ファイルのフォルダを開かせる
-                current_dir = request.args.get("d")
-                return redirect(f'./file?p={current_dir}&i=s,ファイルを正常にコピ－しました。')
+                # ファイルの移動
+                if source_path.parent != to_path:  # 移動元と移動先が同じだったら何もしない
+                    shutil.move(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                                FileExplorer.FILE_EXPLORER_ROOT / to_path)
+
         else:
-            return redirect('login')
+            # パスの確認
+            source_path = Path(source_paths)
+            if not source_path.exists():
+                current_dir = Path(request.args.get("d")).parent
+                return redirect(f'./file?p={current_dir}&i=e,切り取りするファイルのパスが無効です。')
+
+            # 移動先がファイルだった場合
+            to_path = Path(to_path)
+            if not to_path.exists() or to_path.is_file():
+                current_dir = request.args.get("s")
+                return redirect(f'./file?p={current_dir}&i=e,切り取り先のパスが無効です。')
+
+            # 移動先に同じ名前のファイルがあった場合
+            if to_path.joinpath(source_path.name).exists():
+                current_dir = Path(source_path).parent
+                return redirect(f'./file?p={current_dir}&i=e,既に同じ名前のファイルが存在します。')
+
+            # ファイルの移動
+            if source_path.parent != to_path:
+                shutil.move(FileExplorer.FILE_EXPLORER_ROOT / source_path,
+                            FileExplorer.FILE_EXPLORER_ROOT / to_path)
+
+        # 問題がなければ、移動先ファイルのフォルダを開かせる
+        current_dir = request.args.get("d")
+        return redirect(f'./file?p={current_dir}&i=s,ファイルを切り取りしました。')
+    else:
+        return redirect('login')
 
 
 @app.route("/fd")
@@ -558,57 +575,53 @@ def file_delete():
     引数:
       ./?p=(削除するファイルのパス)
     """
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                # 引数の確認
-                paths = request.args.get("p")  # 削除するファイルパスを指定
-                if paths is None or paths == '':
-                    return redirect('./file?p=.&i=e,パスが指定されていません。')
+    if check_cookie():
+        # 引数の確認
+        paths = request.args.get("p")  # 削除するファイルパスを指定
+        if paths is None or paths == '':
+            return redirect('./file?p=.&i=e,パスが指定されていません。')
 
-                # パスが複数あるとき
-                if ',' in paths:
+        # パスが複数あるとき
+        if ',' in paths:
 
-                    # パスを配列に変換
-                    path = paths.split(',')
+            # パスを配列に変換
+            path = paths.split(',')
 
-                    # 1つずつ処理
-                    for i in path:
-                        path = Path(i)
-                        if not path.exists():
-                            current_dir = str(Path(path).parent)
-                            return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
-                        try:
-                            if path.is_dir():
-                                shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
-                            else:
-                                os.remove(FileExplorer.FILE_EXPLORER_ROOT / path)
-                        except Exception:
-                            raise
-
-                        # 問題がなければ、削除ファイルの元フォルダを開かせる
+            # 1つずつ処理
+            for p in path:
+                path = Path(p)
+                if not path.exists():
                     current_dir = str(Path(path).parent)
-                    return redirect(f"./file?p={current_dir}&i=s,ファイルを正常に削除しました。")
-                else:
-                    path = Path(paths)
-                    if not path.exists():
-                        current_dir = str(Path(path).parent)
-                        return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
-                    try:
-                        if path.is_dir():
-                            shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
-                        else:
-                            os.remove(FileExplorer.FILE_EXPLORER_ROOT / path)
-                    except Exception:
-                        raise
+                    return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
+                try:
+                    if path.is_dir():
+                        shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
+                    else:
+                        os.remove(FileExplorer.FILE_EXPLORER_ROOT / path)
+                except Exception:
+                    raise
 
                 # 問題がなければ、削除ファイルの元フォルダを開かせる
-                current_dir = path.parent
-                return redirect(f"./file?p={current_dir}&i=s,ファイルを削除しました。")
+            current_dir = str(Path(path).parent)
+            return redirect(f"./file?p={current_dir}&i=s,ファイルを削除しました。")
         else:
-            return redirect('login')
+            path = Path(paths)
+            if not path.exists():
+                current_dir = str(Path(path).parent)
+                return redirect(f'./file?p={current_dir}&i=e,コピー先のパスが無効です。')
+            try:
+                if path.is_dir():
+                    shutil.rmtree(FileExplorer.FILE_EXPLORER_ROOT / path)
+                else:
+                    os.remove(FileExplorer.FILE_EXPLORER_ROOT / path)
+            except Exception:
+                raise
+
+        # 問題がなければ、削除ファイルの元フォルダを開かせる
+        current_dir = path.parent
+        return redirect(f"./file?p={current_dir}&i=s,ファイルを削除しました。")
+    else:
+        return redirect('login')
 
 
 @app.route("/fr")
@@ -618,79 +631,62 @@ def file_rename():
     引数:
       GET ./?p=(変更元)&d=(変更先)
     """
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
+    if check_cookie():
+        # 引数の確認
+        path = request.args.get("p")  # 変更元のパス
+        to_path = request.args.get("d")  # 変更先のパス
+        if path is None or path == '':
+            return redirect(f'./file?p=.&i=e,ファイル名を変更するファイルのパスが指定されていません。')
+        if to_path is None or to_path == '':
+            return redirect(f'./file?p=.&i=e,ファイル名を変更する先のパスが指定されていません。')
 
-                # 引数の確認
-                path = request.args.get("p")  # 変更元のパス
-                to_path = request.args.get("d")  # 変更先のパス
-                if path is None or path == '':
-                    return redirect(f'./file?p=.&i=e,ファイル名を変更するファイルのパスが指定されていません。')
-                if to_path is None or to_path == '':
-                    return redirect(f'./file?p=.&i=e,ファイル名を変更する先のパスが指定されていません。')
+        # パスの確認
+        path = Path(path)
+        if not path.exists():
+            current_dir = Path(request.args.get("p")).parent
+            return redirect(f'./file?p={current_dir}&i=e,ファイル名を変更するファイルのパスが無効です。')
+        to_path = Path(to_path)
 
-                # パスの確認
-                path = Path(path)
-                if not path.exists():
-                    current_dir = Path(request.args.get("p")).parent
-                    return redirect(f'./file?p={current_dir}&i=e,ファイル名を変更するファイルのパスが無効です。')
-                to_path = Path(to_path)
+        if not to_path.parent.exists():
+            return redirect(f'./file?p=.&i=e,ファイル名を変更するパスが無効です。')
 
-                if not to_path.parent.exists():
-                    return redirect(f'./file?p=.&i=e,ファイル名を変更するパスが無効です。')
+        if (FileExplorer.FILE_EXPLORER_ROOT / to_path).exists():
+            current_dir = Path(request.args.get("p")).parent
+            return redirect(f'./file?p={current_dir}&i=e,既に同じ名前のファイルがあります。')
 
-                if (FileExplorer.FILE_EXPLORER_ROOT / to_path).exists():
-                    current_dir = Path(request.args.get("p")).parent
-                    return redirect(f'./file?p={current_dir}&i=e,既に同じ名前のファイルがあります。')
+        # 名前の変更
+        os.rename(FileExplorer.FILE_EXPLORER_ROOT / path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
 
-                # 名前の変更
-                os.rename(FileExplorer.FILE_EXPLORER_ROOT / path, FileExplorer.FILE_EXPLORER_ROOT / to_path)
+        # 問題がなければ、変更先ファイルのフォルダを開かせる
+        current_dir = Path(request.args.get("p")).parent
+        return redirect(f'./file?p={current_dir}&i=s,ファイル名を変更しました。')
 
-                # 問題がなければ、変更先ファイルのフォルダを開かせる
-                current_dir = Path(request.args.get("p")).parent
-                return redirect(f'./file?p={current_dir}&i=s,ファイル名を変更しました。')
-
-        else:
-            return redirect('login')
+    else:
+        return redirect('login')
 
 
 @app.errorhandler(403)
 def error_403(error):
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                return render_template('403.html')
-        else:
-            return redirect('login')
+    if check_cookie():
+        return render_template('403.html')
+    else:
+        return redirect('login')
 
 
 @app.errorhandler(404)
 def error_404(error):
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                return render_template('404.html')
-        else:
-            return redirect('login')
+    if check_cookie():
+        return render_template('404.html')
+    else:
+        return redirect('login')
 
 
 @app.errorhandler(500)
 def error_500(error):
-    with open('manager/session.yml', 'r', encoding="utf-8") as f:
-        yml = yaml.load(f, Loader=yaml.SafeLoader)
-        true_keys = [key for key, value in yml.items() if value]
-        for i in true_keys:
-            if 'session' in request.cookies and request.cookies.get('session') == i:
-                return render_template('500.html')
-        else:
-            return redirect('login')
+    if check_cookie():
+        return render_template('500.html')
+    else:
+        return redirect('login')
 
 
 @socketio.on('connect')
